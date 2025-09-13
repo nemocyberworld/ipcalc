@@ -1,8 +1,4 @@
-Perfect 👍 Thanks for sharing! Here’s your **final README.md** tailored for your repo:
 
----
-
-````markdown
 # 🌐 IP Calculator + Lesson
 
 An interactive, web-based **IP Subnet Calculator** built with **HTML, Tailwind CSS, and JavaScript**.  
