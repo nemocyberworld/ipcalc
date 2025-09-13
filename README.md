@@ -1,4 +1,3 @@
-
 # 🌐 IP Calculator + Lesson
 
 An interactive, web-based **IP Subnet Calculator** built with **HTML, Tailwind CSS, and JavaScript**.  
@@ -43,16 +42,11 @@ This tool bridges **theory and practice**, making subnetting easier to understan
 1. Clone this repository:
    ```bash
    git clone https://github.com/nemocyberworld/ipcalc.git
-````
-
 2. Open the project:
-
    ```bash
    cd ipcalc
    ```
-
 3. Launch:
-
    * Simply open `index.html` in your browser.
    * No dependencies, no server required.
 
@@ -68,15 +62,12 @@ This tool bridges **theory and practice**, making subnetting easier to understan
 
 ## 👨‍💻 Author
 
-Created by [Captain Nemo](https://nemocyberworld.github.io)
-In collaboration with [HackToLive Academy](https://hacktolive.net)
+Created by [Captain Nemo](https://nemocyberworld.github.io/)
+
+In collaboration with [HackToLive Academy](https://hacktolive.net/)
 
 ---
 
 ## 📜 License
 
 This project is licensed under the **MIT License** – feel free to use, modify, and share.
-
-
-Do you want me to also design a **preview screenshot badge** for the README (so when people open your repo, they immediately see how the calculator looks)?
-```
