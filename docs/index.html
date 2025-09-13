@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IP Calculator + Lesson</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+  <div class="max-w-6xl mx-auto p-4 lg:p-8">
+    <h1 class="text-3xl font-bold mb-6 text-center text-indigo-700">🌐 IP Calculator</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- LEFT: Calculator -->
+      <div class="lg:col-span-2">
+        <div class="bg-white shadow-lg border border-gray-100 rounded-2xl p-6">
+          <!-- Input -->
+          <div class="flex gap-2 mb-6">
+            <input id="ipInput" type="text" placeholder="Enter IP/CIDR (e.g., 192.168.0.2/24)"
+                   class="w-full px-4 py-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-400 outline-none" />
+          </div>
+
+          <!-- Options -->
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center">
+              <input type="checkbox" id="toggleBinary" class="mr-2 rounded text-indigo-600 focus:ring-indigo-500" />
+              <label for="toggleBinary" class="text-gray-700 text-sm">Show Binary View</label>
+            </div>
+            <button id="downloadBtn"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow text-sm transition">
+              ⬇ Download TXT
+            </button>
+          </div>
+
+          <!-- Output -->
+          <div id="output" class="bg-gray-50 border rounded-lg p-4 text-sm font-mono text-gray-800 space-y-2 shadow-inner">
+            <p class="text-gray-500">Enter an IP with CIDR to see results...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Lesson Pane -->
+      <div class="lg:col-span-1">
+        <div class="bg-white shadow-lg border border-gray-100 rounded-2xl p-6 lg:sticky lg:top-4">
+          <h2 class="text-lg font-semibold mb-3 text-indigo-700">📘 Lesson: How it’s calculated</h2>
+          <p class="text-xs text-gray-500 mb-4">Step-by-step explanation updates live with your input.</p>
+          <div id="lesson" class="space-y-3 text-sm text-gray-700">
+            <p class="text-gray-400">Start typing an IP/CIDR to see the breakdown here...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Toast -->
+  <div id="toast"
+       class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-500"></div>
+
+  <!-- Footer -->
+  <footer class="mt-10 py-4 bg-gray-200 text-center text-sm text-gray-700">
+    Created by <a href="https://nemocyberworld.github.io" class="text-blue-600 hover:underline">Captain Nemo</a>
+    in collaboration with
+    <a href="https://hacktolive.net" class="text-blue-600 hover:underline">HackToLive Academy</a>
+  </footer>
+
+<script>
+const ipInput = document.getElementById('ipInput');
+const output = document.getElementById('output');
+const toggleBinary = document.getElementById('toggleBinary');
+const downloadBtn = document.getElementById('downloadBtn');
+const toast = document.getElementById('toast');
+const lesson = document.getElementById('lesson');
+
+ipInput.addEventListener('input', calculateIP);
+toggleBinary.addEventListener('change', calculateIP);
+downloadBtn.addEventListener('click', downloadTXT);
+
+let lastExport = ""; // for TXT export
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.remove("opacity-0");
+  toast.classList.add("opacity-100");
+  setTimeout(() => {
+    toast.classList.remove("opacity-100");
+    toast.classList.add("opacity-0");
+  }, 1500);
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("✅ Copied: " + text);
+  });
+}
+
+function intToIp(int) {
+  return [(int>>>24)&255, (int>>>16)&255, (int>>>8)&255, int&255].join(".");
+}
+
+function toBinaryColored(int, prefix) {
+  const bits = [(int>>>24)&255,(int>>>16)&255,(int>>>8)&255,int&255]
+    .map(o => o.toString(2).padStart(8,"0")).join("");
+  let colored = "";
+  for (let i=0; i<bits.length; i++) {
+    colored += `<span class="${i < prefix ? 'text-green-600' : 'text-red-600'}">${bits[i]}</span>`;
+    if ((i+1) % 8 === 0 && i !== 31) colored += ".";
+  }
+  return colored;
+}
+
+function toBinaryPlain(int) {
+  return [(int>>>24)&255,(int>>>16)&255,(int>>>8)&255,int&255]
+    .map(o => o.toString(2).padStart(8,"0")).join(".");
+}
+
+function getClass(firstOctet) {
+  if (firstOctet < 128) return "Class A";
+  if (firstOctet < 192) return "Class B";
+  if (firstOctet < 224) return "Class C";
+  if (firstOctet < 240) return "Class D (Multicast)";
+  return "Class E (Experimental)";
+}
+
+function getPrivateStatus(o) {
+  if (o[0] === 10) return "Private";
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return "Private";
+  if (o[0] === 192 && o[1] === 168) return "Private";
+  return "Public";
+}
+
+function calculateIP() {
+  const input = ipInput.value.trim();
+  output.innerHTML = "";
+  lesson.innerHTML = "";
+  lastExport = "";
+
+  if (!input.includes("/")) {
+    output.innerHTML = "<p class='text-gray-500'>Enter an IP with CIDR (e.g., 192.168.0.2/24)</p>";
+    lesson.innerHTML = `
+      <div class="border rounded-lg p-3 bg-gray-50">
+        <p>Start by typing an IP/CIDR like <code>192.168.0.2/24</code>. The lesson will walk you through:</p>
+        <ul class="list-disc pl-5 mt-2 text-gray-700">
+          <li>How the netmask is built from the prefix</li>
+          <li>Network & broadcast calculation</li>
+          <li>Host range and host count</li>
+          <li>Class & private/public</li>
+        </ul>
+      </div>`;
+    return;
+  }
+
+  const [ip, cidr] = input.split("/");
+  const octets = ip.split(".").map(Number);
+  const prefix = parseInt(cidr);
+
+  if (octets.length !== 4 || octets.some(o => isNaN(o) || o < 0 || o > 255) || isNaN(prefix) || prefix < 0 || prefix > 32) {
+    output.innerHTML = "<p class='text-red-500'>Invalid IP or CIDR</p>";
+    return;
+  }
+
+  // Convert IP to int
+  const ipInt = (octets[0]<<24) | (octets[1]<<16) | (octets[2]<<8) | octets[3];
+
+  // Mask, wildcard
+  const hostBits = 32 - prefix;
+  const maskInt = prefix === 0 ? 0 : (0xFFFFFFFF << hostBits) >>> 0;
+  const wildcardInt = (~maskInt) >>> 0;
+
+  // Network & broadcast
+  const networkInt = ipInt & maskInt;
+  const broadcastInt = networkInt | wildcardInt;
+
+  // Usable host range
+  const hostMinInt = (prefix >= 31) ? networkInt : networkInt + 1;
+  const hostMaxInt = (prefix >= 31) ? broadcastInt : broadcastInt - 1;
+
+  // Host count (RFC 3021 for /31: both usable; /32: one address)
+  let hosts;
+  if (prefix === 32) hosts = 1;
+  else if (prefix === 31) hosts = 2;
+  else hosts = (2 ** hostBits) - 2;
+
+  // Class & privacy
+  const ipClass = getClass(octets[0]);
+  const privStatus = getPrivateStatus(octets);
+
+  // Build main output rows (with toggle for binary)
+  const showBinary = toggleBinary.checked;
+  function row(label, value, intVal) {
+    const colored = toBinaryColored(intVal, prefix);
+    const plain = toBinaryPlain(intVal);
+    if (showBinary) lastExport += `${label}: ${value.padEnd(18)} ${plain}\n`;
+    else lastExport += `${label}: ${value}\n`;
+
+    return `
+      <div class="flex items-center gap-2 bg-white hover:bg-indigo-50 px-2 py-1 rounded">
+        <pre class="flex-1"><b>${label}:</b> ${value}${showBinary ? "   " + colored : ""}</pre>
+        <button onclick="copyToClipboard('${value}')"
+          class="bg-gray-200 hover:bg-gray-300 text-xs px-2 py-1 rounded">📋 Copy</button>
+      </div>`;
+  }
+
+  output.innerHTML = `
+    ${row("Address", ip, ipInt)}
+    ${row("Netmask", intToIp(maskInt) + " = " + prefix, maskInt)}
+    ${row("Wildcard", intToIp(wildcardInt), wildcardInt)}
+    <pre>=></pre>
+    ${row("Network", intToIp(networkInt) + "/" + prefix, networkInt)}
+    ${row("HostMin", intToIp(hostMinInt), hostMinInt)}
+    ${row("HostMax", intToIp(hostMaxInt), hostMaxInt)}
+    ${row("Broadcast", intToIp(broadcastInt), broadcastInt)}
+    <div class="flex items-center gap-2 bg-white hover:bg-indigo-50 px-2 py-1 rounded">
+      <pre class="flex-1"><b>Hosts/Net:</b> ${hosts}   ${ipClass}, ${privStatus} Internet</pre>
+      <button onclick="copyToClipboard('${hosts}')"
+        class="bg-gray-200 hover:bg-gray-300 text-xs px-2 py-1 rounded">📋 Copy</button>
+    </div>
+  `;
+  lastExport += `Hosts/Net: ${hosts}   ${ipClass}, ${privStatus} Internet\n`;
+
+  // LESSON: step-by-step
+  const ipBin = toBinaryColored(ipInt, prefix);
+  const maskBin = toBinaryColored(maskInt, prefix);
+  const wcBin = toBinaryColored(wildcardInt, prefix);
+  const netBin = toBinaryColored(networkInt, prefix);
+  const brdBin = toBinaryColored(broadcastInt, prefix);
+
+  lesson.innerHTML = `
+    <details open class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">1) Parse IP & prefix</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>IP: <code>${ip}</code></li>
+        <li>CIDR: <code>/${prefix}</code> → network bits <code>n=${prefix}</code>, host bits <code>h=${hostBits}</code></li>
+        <li class="font-mono mt-1"><span class="text-xs text-gray-500">IP (binary):</span><br>${ipBin}</li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">2) Netmask from prefix</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Mask: first <code>n</code> bits = 1, rest = 0</li>
+        <li>Decimal: <code>${intToIp(maskInt)}</code></li>
+        <li class="font-mono"><span class="text-xs text-gray-500">Mask (binary):</span><br>${maskBin}</li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">3) Wildcard mask</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Wildcard = bitwise NOT of mask</li>
+        <li>Decimal: <code>${intToIp(wildcardInt)}</code></li>
+        <li class="font-mono"><span class="text-xs text-gray-500">Wildcard (binary):</span><br>${wcBin}</li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">4) Network address</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Network = IP <code>&</code> Mask</li>
+        <li>Decimal: <code>${intToIp(networkInt)}/${prefix}</code></li>
+        <li class="font-mono"><span class="text-xs text-gray-500">Network (binary):</span><br>${netBin}</li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">5) Broadcast address</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Broadcast = Network <code>|</code> Wildcard</li>
+        <li>Decimal: <code>${intToIp(broadcastInt)}</code></li>
+        <li class="font-mono"><span class="text-xs text-gray-500">Broadcast (binary):</span><br>${brdBin}</li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">6) Usable host range</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>${
+          prefix >= 31
+            ? "For /31 and /32, special case: all / both addresses are usable."
+            : "Usable range excludes network & broadcast."
+        }</li>
+        <li>HostMin: <code>${intToIp(hostMinInt)}</code></li>
+        <li>HostMax: <code>${intToIp(hostMaxInt)}</code></li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">7) Hosts per network</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Total addresses: <code>2^h = ${2 ** hostBits}</code></li>
+        <li>Usable hosts: <code>${
+          prefix === 32 ? "1 (single host)" :
+          prefix === 31 ? "2 (point-to-point)" :
+          `${hosts} (total - 2)`
+        }</code></li>
+      </ul>
+    </details>
+
+    <details class="border rounded-lg p-3 bg-gray-50">
+      <summary class="font-semibold cursor-pointer">8) Class & Private/Public</summary>
+      <ul class="list-disc pl-5 mt-2">
+        <li>Class: <code>${ipClass}</code></li>
+        <li>Scope: <code>${privStatus} Internet</code> (RFC1918: 10/8, 172.16/12, 192.168/16)</li>
+      </ul>
+    </details>
+  `;
+}
+
+function downloadTXT() {
+  if (!lastExport) {
+    showToast("⚠ Nothing to export");
+    return;
+  }
+  const blob = new Blob([lastExport], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "ipcalc_output.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("⬇ TXT downloaded");
+}
+
+// Initialize with an example
+ipInput.value = "192.168.0.2/24";
+calculateIP();
+</script>
+</body>
+</html>
